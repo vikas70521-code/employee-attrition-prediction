@@ -1,0 +1,16 @@
+,importance
+OverTime_No,0.6985229937753963
+OverTime_Yes,0.6967530209900907
+JobRole_Laboratory Technician,0.6593972555027694
+BusinessTravel_Travel_Frequently,0.6051015995086079
+BusinessTravel_Non-Travel,0.5984402357657597
+AvgYearsPerCompany,0.5288540346721736
+YearsSinceLastPromotion,0.4596882027210127
+JobRole_Sales Representative,0.4055542166446105
+JobRole_Research Director,0.3851040642768565
+MaritalStatus_Single,0.3835475851494785
+Department_Research & Development,0.3174390371403018
+YearsWithCurrManager,0.3026476328230663
+Department_Sales,0.3006132024872306
+MaritalStatus_Divorced,0.30000808342240526
+EducationField_Other,0.2994896417953939

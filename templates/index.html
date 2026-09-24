@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Employee Attrition Predictor</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;
+        --low:#22c55e;--med:#f59e0b;--high:#ef4444}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:32px 24px 8px;text-align:center}
+  header h1{margin:0;font-size:28px}
+  header p{color:var(--muted);margin:6px 0 0}
+  .wrap{max-width:1100px;margin:24px auto;padding:0 20px;display:grid;grid-template-columns:1.4fr 1fr;gap:22px}
+  @media(max-width:860px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .card h2{margin:0 0 14px;font-size:17px;color:var(--accent)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px}
+  input,select{width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:#0b1220;color:var(--text);font-size:14px}
+  input:focus,select:focus{outline:2px solid var(--accent);border-color:transparent}
+  button{margin-top:18px;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#04202e;font-weight:700;font-size:15px;cursor:pointer}
+  button:hover{filter:brightness(1.08)}
+  .result{text-align:center}
+  .gauge{width:170px;height:170px;border-radius:50%;margin:8px auto 14px;display:grid;place-items:center;
+         background:conic-gradient(var(--c,#334155) calc(var(--p,0)*1%),#0b1220 0)}
+  .gauge div{width:130px;height:130px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:30px;font-weight:700}
+  .badge{display:inline-block;padding:5px 14px;border-radius:999px;font-weight:700;font-size:13px;color:#04121c}
+  .hint{color:var(--muted);font-size:13px;margin-top:12px;line-height:1.5}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+  .stat{background:#0b1220;border-radius:10px;padding:10px;text-align:center}
+  .stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--muted)}
+  .bar{display:flex;align-items:center;gap:8px;font-size:12px;margin:5px 0}
+  .bar span:first-child{width:150px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar i{display:block;height:8px;border-radius:4px;background:var(--accent)}
+  .side{display:flex;flex-direction:column;gap:22px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Employee Attrition Predictor</h1>
+  <p>Estimate how likely an employee is to leave, so HR can act early.</p>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2>Employee Details</h2>
+    <div class="grid" id="form">
+      {% for key,label,lo,hi in numeric %}
+      <div><label>{{label}}</label>
+        <input type="number" name="{{key}}" min="{{lo}}" max="{{hi}}" value="{{ defaults[key]|int }}"></div>
+      {% endfor %}
+      {% for key,label,levels in levels %}
+      <div><label>{{label}}</label>
+        <select name="{{key}}">{% for v in levels %}<option value="{{v}}" {{'selected' if v==defaults[key]|int}}>{{v}}</option>{% endfor %}</select></div>
+      {% endfor %}
+      {% for key,label in ratings %}
+      <div><label>{{label}} (1 low – 4 high)</label>
+        <select name="{{key}}">{% for v in [1,2,3,4] %}<option value="{{v}}" {{'selected' if v==defaults[key]|int}}>{{v}}</option>{% endfor %}</select></div>
+      {% endfor %}
+      {% for key,label in choices %}
+      <div><label>{{label}}</label>
+        <select name="{{key}}">{% for v in options[key] %}<option {{'selected' if v==defaults[key]}}>{{v}}</option>{% endfor %}</select></div>
+      {% endfor %}
+    </div>
+    <button onclick="predict()">Predict Attrition Risk</button>
+  </div>
+
+  <div class="side">
+    <div class="card result">
+      <h2>Prediction</h2>
+      <div class="gauge" id="gauge"><div id="pct">–</div></div>
+      <span class="badge" id="badge" style="background:#334155;color:#e2e8f0">Awaiting input</span>
+      <p class="hint" id="msg">Fill in the form and press predict.</p>
+    </div>
+    <div class="card">
+      <h2>Model Performance ({{metrics.model}})</h2>
+      <div class="stats">
+        <div class="stat"><b>{{metrics.roc_auc}}</b><span>ROC-AUC</span></div>
+        <div class="stat"><b>{{metrics.recall}}</b><span>Recall</span></div>
+        <div class="stat"><b>{{metrics.precision}}</b><span>Precision</span></div>
+      </div>
+      <h2 style="margin-top:18px">Top Drivers</h2>
+      {% set mx = top_features.values()|max %}
+      {% for name,val in top_features.items() %}
+        {% if loop.index <= 8 %}<div class="bar"><span>{{name}}</span><i style="width:{{ (val/mx*100)|int }}%"></i></div>{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS={Low:'#22c55e',Medium:'#f59e0b',High:'#ef4444'};
+async function predict(){
+  const payload={};
+  document.querySelectorAll('#form input, #form select').forEach(el=>payload[el.name]=el.value);
+  const r=await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const d=await r.json();
+  const g=document.getElementById('gauge');
+  g.style.setProperty('--p',d.probability); g.style.setProperty('--c',COLORS[d.risk]);
+  document.getElementById('pct').textContent=d.probability+'%';
+  const b=document.getElementById('badge'); b.textContent=d.risk+' Risk'; b.style.background=COLORS[d.risk]; b.style.color='#04121c';
+  document.getElementById('msg').textContent = d.will_leave
+    ? 'This employee is likely to leave. Consider a retention conversation, compensation review, or workload adjustment.'
+    : 'This employee looks likely to stay. Keep monitoring engagement and satisfaction.';
+}
+</script>
+</body>
+</html>
